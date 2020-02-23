@@ -14,17 +14,17 @@ test('pass', t => {
 
 test('anon func', t => {
   const r = fx({"key": "value"}, "'function (x) { return x.key }'")
-  t.deepEqual(r, 'value\n')
+  t.is(r, 'value\n')
 })
 
 test('arrow func', t => {
   const r = fx({"key": "value"}, "'x => x.key'")
-  t.deepEqual(r, 'value\n')
+  t.is(r, 'value\n')
 })
 
 test('arrow func ()', t => {
   const r = fx({"key": "value"}, "'(x) => x.key'")
-  t.deepEqual(r, 'value\n')
+  t.is(r, 'value\n')
 })
 
 test('this bind', t => {
@@ -32,19 +32,14 @@ test('this bind', t => {
   t.deepEqual(JSON.parse(r), [5, 10, 15, 20, 25])
 })
 
-test('generator', t => {
-  const r = fx([1, 2, 3, 4, 5], "'for (let i of this) if (i % 2 == 0) yield i'")
-  t.deepEqual(JSON.parse(r), [2, 4])
-})
-
 test('chain', t => {
-  const r = fx({"items": ["foo", "bar"]}, "'this.items' 'yield* this' 'x => x[1]'")
-  t.deepEqual(r, 'bar\n')
+  const r = fx({"items": ["foo", "bar"]}, "'this.items' '.' 'x => x[1]'")
+  t.is(r, 'bar\n')
 })
 
 test('file argument', t => {
   const r = execSync(`node index.js package.json .name`).toString('utf8')
-  t.deepEqual(r, 'fx\n')
+  t.is(r, 'fx\n')
 })
 
 test('stream', t => {
@@ -72,4 +67,9 @@ test('stream', t => {
 
     reader.read()
   }
+})
+
+test('lossless number', t => {
+  const r = execSync(`echo '{"long": 123456789012345678901}' | node index.js .long`).toString('utf8')
+  t.is(r, '123456789012345678901\n')
 })

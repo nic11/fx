@@ -3,16 +3,10 @@
 const os = require('os')
 const fs = require('fs')
 const path = require('path')
+const JSON = require('lossless-json')
+const std = require('./std')
 
-const skip = Symbol('skip')
-global.select = function select(cb) {
-  return json => {
-    if (!cb(json)) {
-      throw skip
-    }
-    return json
-  }
-}
+JSON.config({circularRefs: false})
 
 try {
   require(path.join(os.homedir(), '.fxrc')) // Should be required before config.js usage.
@@ -91,8 +85,9 @@ function handle(input) {
       return
     }
 
-    input = fs.readFileSync(args[0])
+    input = fs.readFileSync(args[0]).toString('utf8')
     filename = path.basename(args[0])
+    global.FX_FILENAME = filename
     args.shift()
   }
 
@@ -108,15 +103,17 @@ function handle(input) {
 
 
 function apply(json) {
-  let output
+  let output = json
 
-  try {
-    output = args.reduce(reduce, json)
-  } catch (e) {
-    if (e !== skip) {
-      throw e
-    } else {
-      return
+  for (let [i, code] of args.entries()) {
+    try {
+      output = reduce(output, code)
+    } catch (e) {
+      if (e === std.skip) {
+        return
+      }
+      stderr.write(`${snippet(i, code)}\n${e.stack || e}\n`)
+      process.exit(1)
     }
   }
 
@@ -128,4 +125,17 @@ function apply(json) {
     const [text] = print(output)
     console.log(text)
   }
+}
+
+function snippet(i, code) {
+  let pre = args.slice(0, i).join(' ')
+  let post = args.slice(i + 1).join(' ')
+  if (pre.length > 20) {
+    pre = '...' + pre.substring(pre.length - 20)
+  }
+  if (post.length > 20) {
+    post = post.substring(0, 20) + '...'
+  }
+  const chalk = require('chalk')
+  return `\n  ${pre} ${chalk.red.underline(code)} ${post}\n`
 }

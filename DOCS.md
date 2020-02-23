@@ -5,15 +5,17 @@
   + [Anonymous function](#anonymous-function)
   + [Binding](#binding)
   + [Dot](#dot)
+  + [Map](#map)
   + [Chaining](#chaining)
-  + [Generator](#generator)
   + [Updating](#updating)
+  + [Edit-in-place](#edit-in-place)
   + [Using packages](#using-packages)
 * [Using .fxrc](#using-fxrc)
-  + [Edit in place](#edit-in-place)
+  + [Query language](#query-language)
 * [Formatting](#formatting)
 * [Other examples](#other-examples)
 * [Streaming mode](#streaming-mode)
+  + [Filtering](#filtering)
 * [Interactive mode](#interactive-mode)
   + [Searching](#searching)
   + [Selecting text](#selecting-text)
@@ -70,38 +72,56 @@ $ echo '{"foo": "bar"}' | fx .
 }
 ```
 
+### Map
+
+One of the frequent operations is mapping some function on an array. For example, to extract some values.
+
+```
+[
+  {
+    "author": {
+      "name": "antonmedv"
+    }, 
+    ...
+  },
+  {...},
+  {...},
+  ...
+]
+```
+
+And we want to collect names of each object in array. We can do this by mapping anonymous function:
+
+```bash
+$ cat ... | fx '.map(x => x.author.name)'
+```
+
+Or we can do the same by using `@` prefix:
+
+```bash
+$ cat ... | fx @.author.name
+[
+  "antonmedv",
+  ...
+]
+```
+
+Expression followed by `@` symbol will be mapped to each element of array.
+
+> Note what `@` can be applied to map object values.
+> ```bash
+> $ echo '{"foo": 1, "bar": 2}' | fx @+1
+> [2, 3]
+> ```
+> 
+> Also note what symbol `@` alone is equivalent of `Object.values` function.
+
 ### Chaining
 
 You can pass any number of anonymous functions for reducing JSON:
 ```bash
 $ echo '{"foo": [{"bar": "value"}]}' | fx 'x => x.foo' 'this[0]' 'this.bar'
 value
-```
-
-### Generator
-
-If the passed code contains the `yield` keyword, [generator expression](https://github.com/sebmarkbage/ecmascript-generator-expression)
-will be used:
-```bash
-$ curl ... | fx 'for (let user of this) if (user.login.startsWith("a")) yield user'
-```
-
-Access to JSON through `this` keyword:
-```bash
-$ echo '["a", "b"]' | fx 'yield* this'
-[
-  "a",
-  "b"
-]
-```
-
-```bash
-$ echo '["a", "b"]' | fx 'yield* this; yield "c";'
-[
-  "a",
-  "b",
-  "c"
-]
 ```
 
 ### Updating
@@ -113,6 +133,17 @@ $ echo '{"count": 0}' | fx '{...this, count: 1}'
 {
   "count": 1
 }
+```
+
+### Edit-in-place
+
+`fx` provides a function `save` which will save everything in place and return saved object.
+This function can be only used with filename as first argument to `fx` command. 
+
+Usage:
+
+```bash
+fx data.json '{...this, count: this.count+1}' save .count
 ```
 
 ### Using packages
@@ -145,23 +176,30 @@ curl 'https://api.github.com/repos/facebook/react/commits?per_page=100' \
 > export NODE_PATH=`npm root -g`
 > ```
 
-### Edit in place
+### Query language
 
-Add next code to your _.fxrc_ file:
+If you want to use query language, for example [jsonata](http://jsonata.org/) you can use helper function like this:
 
 ```js
-const fs = require('fs')
+global.jsonata = expr => require('jsonata')(expr).evaluate
+``` 
 
-global.save = json => {
-  fs.writeFileSync(process.argv[2], JSON.stringify(json, null, 2))
-  return json
-}
-```
-
-Usage:
+And use it like this:
 
 ```bash
-fx data.json '{...this, count: this.count+1}' save .count
+curl ... | fx 'jsonata("$sum(Order.Product.(Price * Quantity))")'
+```
+
+Instead you can create next alias in _.bashrc_ file:
+
+```bash
+alias jsonata='FX_APPLY=jsonata fx'
+```
+
+And now all code arguments to `jsonata` will be passed through `jsonata` helper. And now you can use it like this:
+
+```bash
+curl ... | jsonata '$sum(Order.Product.(Price * Quantity))'
 ```
 
 ## Formatting
@@ -202,15 +240,27 @@ $ cat package.json | fx .dependencies ?
 
 ```bash
 $ kubectl logs ... | fx .message
-``` 
-
-Sometimes it is necessary to omit some messages in JSON stream, or select only specified log messages.
-For this purpose, `fx` has special helper `select`, pass function into it to select only some JSON messages.
-
-```bash
-$ kubectl logs ... | fx 'select(x => x.message.length > 40)' .message
 ```
 
+> Note what is object lacks `message` field, _undefined_ will be printed to stderr.
+> This is useful to see if you are skipping some objects. But if you want to hide them,
+> redirect stderr to `/dev/null`.
+
+### Filtering
+
+Sometimes it is necessary to omit some messages in JSON stream, or select only specified log messages.
+For this purpose, `fx` has special helpers `select`/`filter`, pass function into it to select/filter JSON messages.
+
+```bash
+$ kubectl logs ... | fx 'select(x => x.status == 500)' .message
+```
+
+```bash
+$ kubectl logs ... | fx 'filter(x => x.status < 499)' .message
+```
+
+> Note, what if use override `filter`/`select` in _.fxrc_ you still able to access them with prefix:
+> `std.select(cb)` or `std.filter(cd)`
 
 ## Interactive mode
 
@@ -218,21 +268,23 @@ Click on fields to expand or collapse JSON tree, use mouse wheel to scroll view.
 
 Next commands available in interactive mode:
 
-|             Key               |         Command         |
-|-------------------------------|-------------------------|
-| `q` or `Esc` or `Ctrl`+`c`    | Exit                    |
-| `up` or `k`                   | Move cursor up          |
-| `down` or `j`                 | Move cursor down        |
-| `left` or `h`                 | Collapse                |
-| `right` or `l`                | Expand                  |
-| `Shift`+`right` or `L`        | Expand all under cursor | 
-| `e`                           | Expand all              |
-| `E`                           | Collapse all            |
-| `g`                           | Scroll to top           |
-| `G`                           | Scroll to bottom        |
-| `.`                           | Edit filter             |
-| `/`                           | Search                  |
-| `n`                           | Find next               |
+|             Key               |         Command                              |
+|-------------------------------|----------------------------------------------|
+| `q` or `Esc` or `Ctrl`+`c`    | Exit                                         |
+| `up` or `k`                   | Move cursor up                               |
+| `down` or `j`                 | Move cursor down                             |
+| `left` or `h`                 | Collapse                                     |
+| `right` or `l`                | Expand                                       |
+| `Shift`+`right` or `L`        | Expand all under cursor                      | 
+| `e`                           | Expand all                                   |
+| `E`                           | Collapse all                                 |
+| `g`                           | Scroll to top                                |
+| `G`                           | Scroll to bottom                             |
+| `.`                           | Edit filter                                  |
+| `/`                           | Search                                       |
+| `n`                           | Find next                                    |
+| `p`                           | Exit and print JSON to stdout                |
+| `P`                           | Exit and print fully expanded JSON to stdout |
 
 These commands are available when editing the filter:
 
@@ -265,6 +317,8 @@ You may found what you can't just select text in fx. This is due the fact that a
 | `Option`+`Mouse` | iTerm2, Hyper |
 | `Fn`+`Mouse`     | Terminal.app  |
 | `Shift`+`Mouse`  | Linux         |
+
+> Note what you can press `p`/`P` to print everything to stdout and select if there.
 
 ## Memory Usage
 

@@ -1,8 +1,9 @@
 {
   "name": "fx",
-  "version": "14.1.0",
+  "version": "18.0.1",
   "description": "Command-line JSON viewer",
   "repository": "antonmedv/fx",
+  "homepage": "https://fx.wtf",
   "author": "Anton Medvedev <anton@medv.io>",
   "license": "MIT",
   "bin": {
@@ -16,6 +17,7 @@
     "index.js",
     "print.js",
     "reduce.js",
+    "std.js",
     "stream.js"
   ],
   "scripts": {
@@ -45,14 +47,15 @@
     "node": ">=8"
   },
   "dependencies": {
-    "@medv/blessed": "^2.0.0",
-    "chalk": "^2.4.2",
+    "@medv/blessed": "^2.0.1",
+    "chalk": "^3.0.0",
     "indent-string": "^4.0.0",
-    "string-width": "^4.1.0"
+    "lossless-json": "^1.0.3",
+    "string-width": "^4.2.0"
   },
   "devDependencies": {
     "ava": "^2.4.0",
-    "pkg": "^4.4.0",
+    "pkg": "^4.4.2",
     "release-it": "^12.4.3"
   }
 }

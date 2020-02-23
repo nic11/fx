@@ -8,9 +8,9 @@ const print = require('./print')
 const find = require('./find')
 const config = require('./config')
 
-module.exports = function start(filename, source) {
+module.exports = function start(filename, source, prev = {}) {
   // Current rendered object on a screen.
-  let json = source
+  let json = prev.json || source
 
   // Contains map from row number to expand path.
   // Example: {0: '', 1: '.foo', 2: '.foo[0]'}
@@ -18,7 +18,7 @@ module.exports = function start(filename, source) {
 
   // Contains expanded paths. Example: ['', '.foo']
   // Empty string represents root path.
-  const expanded = new Set()
+  const expanded = prev.expanded || new Set()
   expanded.add('')
 
   // Current filter code.
@@ -29,9 +29,9 @@ module.exports = function start(filename, source) {
   let findGen = null
   let currentPath = null
 
+  let ttyReadStream, ttyWriteStream
+
   // Reopen tty
-  let ttyReadStream
-  let ttyWriteStream
   if (process.platform === 'win32') {
     const cfs = process.binding('fs')
     ttyReadStream = tty.ReadStream(cfs.open('conin$', fs.constants.O_RDWR | fs.constants.O_EXCL, 0o666))
@@ -135,13 +135,15 @@ module.exports = function start(filename, source) {
   statusBar.hide()
   autocomplete.hide()
 
-  screen.key(['escape', 'q', 'C-c'], function () {
-    program.disableMouse()                // If exit program immediately, stdin may still receive
-    setTimeout(() => process.exit(0), 10) // mouse events which will be printed in stdout.
+  process.stdout.on('resize', () => {
+    // Blessed has a bug with resizing the terminal. I tried my best to fix it but was not succeeded.
+    // For now exit and print seem like a reasonable alternative, as it not usable after resize.
+    // If anyone can fix this bug it will be cool.
+    printJson({expanded})
   })
 
-  screen.on('resize', function () {
-    render()
+  screen.key(['escape', 'q', 'C-c'], function () {
+    exit()
   })
 
   input.on('submit', function () {
@@ -640,6 +642,25 @@ module.exports = function start(filename, source) {
     hideStatusBar()
   })
 
+  box.key('p', function () {
+    printJson({expanded})
+  })
+
+  box.key('S-p', function () {
+    printJson()
+  })
+
+  function printJson(options = {}) {
+    screen.destroy()
+    program.disableMouse()
+    program.destroy()
+    setTimeout(() => {
+      const [text] = print(json, options)
+      console.log(text)
+      process.exit(0)
+    }, 10)
+  }
+
   function getLine(y) {
     const dy = box.childBase + y
     const n = box.getNumber(dy)
@@ -872,6 +893,13 @@ module.exports = function start(filename, source) {
     box.setContent(content)
     config.useRuler && updateRuler() 
     screen.render()
+  }
+
+  function exit() {
+    // If exit program immediately, stdin may still receive
+    // mouse events which will be printed in stdout.
+    program.disableMouse()
+    setTimeout(() => process.exit(0), 10)
   }
 
   render()
