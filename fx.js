@@ -766,7 +766,7 @@ module.exports = function start(filename, source, prev = {}) {
       try {
         regex = new RegExp(m[1], m[2])
       } catch (e) {
-        // Wrong regexp.
+        showStatusBar('Invalid regexp')
       }
     } else {
       m = pattern.match(/^\/(.*)$/)
@@ -774,7 +774,7 @@ module.exports = function start(filename, source, prev = {}) {
         try {
           regex = new RegExp(m[1], 'gi')
         } catch (e) {
-          // Wrong regexp.
+          showStatusBar('Invalid regexp')
         }
       }
     }
