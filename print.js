@@ -26,12 +26,10 @@ function print(input, options = {}) {
 
     // Code for highlighting parts become cumbersome.
     // Maybe we should refactor this part.
-    const highlightStyle = (currentPath === path) ? config.highlightCurrent : config.highlight
-    const formatStyle = (v, style) => format(v, style, highlightStyle, highlight)
+    const highlightStyle = (path) => paths.equal(currentPath, path) ? config.highlightCurrent : config.highlight
+    const formatStyle = (v, style) => format(v, style, highlightStyle(path), highlight)
     const formatText = (v, style, path) => {
-      // XXX: equals
-      const highlightStyle = (currentPath === path) ? config.highlightCurrent : config.highlight
-      return format(v, style, highlightStyle, highlight, JSON.stringify)
+      return format(v, style, highlightStyle(path), highlight, JSON.stringify)
     }
 
     const eol = () => {

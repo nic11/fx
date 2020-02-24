@@ -3,7 +3,7 @@
 const arrayEqual = require('array-equal')
 
 exports.equal = function equal(path1, path2) {
-  if (path1 === undefined || path2 === undefined) {
+  if (!Array.isArray(path1) || !Array.isArray(path2)) {
     return path1 === path2
   }
   return arrayEqual(path1, path2)
