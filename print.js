@@ -1,6 +1,7 @@
 'use strict'
 const indent = require('indent-string')
 const config = require('./config')
+const paths = require('./paths')
 
 function format(value, style, highlightStyle, regexp, transform = x => x) {
   if (!regexp) {
@@ -20,7 +21,7 @@ function print(input, options = {}) {
   const index = new Map()
   let row = 0
 
-  function doPrint(v, path = '') {
+  function doPrint(v, path = []) {
     index.set(row, path)
 
     // Code for highlighting parts become cumbersome.
@@ -28,6 +29,7 @@ function print(input, options = {}) {
     const highlightStyle = (currentPath === path) ? config.highlightCurrent : config.highlight
     const formatStyle = (v, style) => format(v, style, highlightStyle, highlight)
     const formatText = (v, style, path) => {
+      // XXX: equals
       const highlightStyle = (currentPath === path) ? config.highlightCurrent : config.highlight
       return format(v, style, highlightStyle, highlight, JSON.stringify)
     }
@@ -67,14 +69,16 @@ function print(input, options = {}) {
       const len = v.length
 
       if (len > 0) {
-        if (expanded && !expanded.has(path)) {
+        if (expanded && !expanded.has(paths.toZeroSeparatedString(path))) {
           output += '\u2026'
         } else {
           output += eol()
           let i = 0
           for (let item of v) {
             const value = typeof item === 'undefined' ? null : item // JSON.stringify compatibility
-            output += indent(doPrint(value, path + '[' + i + ']'), config.space)
+            const newPath = path.slice()
+            newPath.push(i)
+            output += indent(doPrint(value, newPath), config.space)
             output += i++ < len - 1 ? config.comma(',') : ''
             output += eol()
           }
@@ -91,13 +95,15 @@ function print(input, options = {}) {
       const len = entries.length
 
       if (len > 0) {
-        if (expanded && !expanded.has(path)) {
+        if (expanded && !expanded.has(paths.toZeroSeparatedString(path))) {
           output += '\u2026'
         } else {
           output += eol()
           let i = 0
           for (let [key, value] of entries) {
-            const part = formatText(key, config.key, path + '.' + key) + config.colon(':') + ' ' + doPrint(value, path + '.' + key)
+            const newPath = path.slice()
+            newPath.push(key)
+            const part = formatText(key, config.key, newPath) + config.colon(':') + ' ' + doPrint(value, newPath)
             output += indent(part, config.space)
             output += i++ < len - 1 ? config.comma(',') : ''
             output += eol()

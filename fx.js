@@ -601,10 +601,10 @@ module.exports = function start(filename, source, prev = {}) {
     } else {
       // If there is no expanded paths on current line,
       // collapse parent path of current location.
-      if (typeof path === 'string') {
+      if (Array.isArray(path)) {
         // Trip last part (".foo", "[0]") to get parent path.
         // TODO: paths.getParent
-        const parentPath = path.replace(/(\.[^\[\].]+|\[\d+\])$/, '')
+        const parentPath = path.slice(0, -1)//replace(/(\.[^\[\].]+|\[\d+\])$/, '')
         // XXX: format
         if (getExpanded(parentPath)) {
           updateExpanded(parentPath, false)
@@ -614,7 +614,7 @@ module.exports = function start(filename, source, prev = {}) {
           // move cursor to this position of just collapsed parent path.
           for (let y = program.y; y >= 0; --y) {
             const [n, line] = getLine(y)
-            if (index.get(n) === parentPath) {
+            if (paths.equal(index.get(n), parentPath)) {
               program.cursorPos(y, line.search(/\S/))
               break
             }
@@ -832,14 +832,15 @@ module.exports = function start(filename, source, prev = {}) {
       showStatusBar('Pattern not found')
     } else {
 
-      currentPath = ''
+      currentPath = []
       for (let p of path) {
-        updateExpanded(currentPath += p, true)
+        currentPath.push(p)
+        updateExpanded(currentPath, true)
       }
       render()
 
       for (let [k, v] of index) {
-        if (v === currentPath) {
+        if (paths.equal(v, currentPath)) {
           let y = box.getScreenNumber(k)
 
           // Scroll one line up for better view and make sure it's not negative.
@@ -858,7 +859,7 @@ module.exports = function start(filename, source, prev = {}) {
       // it looks like an ugly hack and it is an ugly hack.
       setTimeout(() => {
         for (let [k, v] of index) {
-          if (v === currentPath) {
+          if (paths.equal(v, currentPath)) {
             let y = box.getScreenNumber(k) - box.childBase
             if (y <= 0) {
               y = 0
@@ -876,7 +877,7 @@ module.exports = function start(filename, source, prev = {}) {
     const y = box.childBase + program.y
     const [n] = getLine(program.y)
     // XXX: format
-    const path = index.get(n) || ''
+    const path = paths.toHumanReadableString(index.get(n) || '')
     const scrollPercent = ((y / (box.getScrollHeight() - 1)) * 100).toFixed(0)
     const compressPath = p => {
       if(pathBar.strWidth(path) < pathBar.width) {
@@ -929,6 +930,7 @@ module.exports = function start(filename, source, prev = {}) {
   render()
 }
 
+// XXX: path
 function* bfs(json) {
   const queue = [[json, '']]
 
@@ -958,7 +960,7 @@ function* bfs(json) {
   }
 }
 
-function* dfs(v, path = '') {
+function* dfs(v, path = []) {
   if (!v) {
     return
   }
@@ -967,14 +969,18 @@ function* dfs(v, path = '') {
     yield path
     let i = 0
     for (let item of v) {
-      yield* dfs(item, path + '[' + (i++) + ']')
+      const newPath = path.slice()
+      newPath.push(i++)
+      yield* dfs(item, newPath)
     }
   }
 
   if (typeof v === 'object' && v.constructor === Object) {
     yield path
     for (let [key, value] of Object.entries(v)) {
-      yield* dfs(value, path + '.' + key)
+      const newPath = path.slice()
+      newPath.push(key)
+      yield* dfs(value, newPath)
     }
   }
 }

@@ -8,7 +8,9 @@ function* find(v, regex, path = []) {
   if (Array.isArray(v)) {
     let i = 0
     for (let value of v) {
-      yield* find(value, regex, path.concat(['[' + i++ + ']']))
+      const nextPath = path.slice()
+      nextPath.push(i++)
+      yield* find(value, regex, nextPath)
     }
     return
   }
@@ -16,7 +18,8 @@ function* find(v, regex, path = []) {
   if (typeof v === 'object' && v.constructor === Object) {
     const entries = Object.entries(v)
     for (let [key, value] of entries) {
-      const nextPath = path.concat(['.' + key])
+      const nextPath = path.slice()
+      nextPath.push(key)
 
       if (regex.test(key)) {
         yield nextPath
