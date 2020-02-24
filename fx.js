@@ -3,7 +3,9 @@ const fs = require('fs')
 const tty = require('tty')
 const blessed = require('@medv/blessed')
 const stringWidth = require('string-width')
+//const arrayEqual = require('array-equal')
 const reduce = require('./reduce')
+const paths = require('./paths')
 const print = require('./print')
 const find = require('./find')
 const config = require('./config')
@@ -273,7 +275,7 @@ module.exports = function start(filename, source, prev = {}) {
     expanded.clear()
     for (let path of dfs(json)) {
       if (expanded.size < 1000) {
-        expanded.add(path)
+        updateExpanded(path, true)
       } else {
         break
       }
@@ -284,7 +286,7 @@ module.exports = function start(filename, source, prev = {}) {
   box.key('S-e', function () {
     hideStatusBar()
     expanded.clear()
-    expanded.add('')
+    updateExpanded('', true)
     render()
 
     // Make sure cursor stay on JSON object.
@@ -503,7 +505,8 @@ module.exports = function start(filename, source, prev = {}) {
     render()
   })
 
-  const isExpanded = y => expanded.has(index.get(y + box.childBase))
+  // XXX: format
+  const isLineExpanded = y => getExpanded(index.get(y + box.childBase))
 
   // Next expanded object/array
   box.key('}', function() {
@@ -520,7 +523,7 @@ module.exports = function start(filename, source, prev = {}) {
           // don't jump cursor to top when scrolling to patial last page
           y = n < box.getScrollHeight() - box.height ? 0 : n % box.height
         }
-      } while(!isExpanded(y) && y + box.childBase < box.getScrollHeight() - 1)
+      } while(!isLineExpanded(y) && y + box.childBase < box.getScrollHeight() - 1)
 
       const line = box.getScreenLine(y + box.childBase)
       program.cursorPos(y, line && line.search(/\S/))
@@ -543,7 +546,7 @@ module.exports = function start(filename, source, prev = {}) {
           // don't jump cursor to bottom when scrolling to patial first page
           y = n < box.height ? n - 1 : box.height
         }
-      } while(!isExpanded(y) && n > 1)
+      } while(!isLineExpanded(y) && n > 1)
 
       const line = box.getScreenLine(y + box.childBase)
       program.cursorPos(y, line && line.search(/\S/))
@@ -557,8 +560,9 @@ module.exports = function start(filename, source, prev = {}) {
     program.showCursor()
     program.cursorPos(program.y, line.search(/\S/))
     const path = index.get(n)
-    if (!expanded.has(path)) {
-      expanded.add(path)
+    // XXX: format
+    if (!getExpanded(path)) {
+      updateExpanded(path, true)
       render()
     }
   })
@@ -573,7 +577,7 @@ module.exports = function start(filename, source, prev = {}) {
     const subJson = reduce(json, 'this' + path)
     for (let p of dfs(subJson, path)) {
       if (expanded.size < 1000) {
-        expanded.add(p)
+        updateExpanded(p, true)
       } else {
         break
       }
@@ -590,18 +594,20 @@ module.exports = function start(filename, source, prev = {}) {
     // Find path at current cursor position.
     const path = index.get(n)
 
-    if (expanded.has(path)) {
+    if (getExpanded(path)) {
       // Collapse current path.
-      expanded.delete(path)
+      updateExpanded(path, false)
       render()
     } else {
       // If there is no expanded paths on current line,
       // collapse parent path of current location.
       if (typeof path === 'string') {
         // Trip last part (".foo", "[0]") to get parent path.
+        // TODO: paths.getParent
         const parentPath = path.replace(/(\.[^\[\].]+|\[\d+\])$/, '')
-        if (expanded.has(parentPath)) {
-          expanded.delete(parentPath)
+        // XXX: format
+        if (getExpanded(parentPath)) {
+          updateExpanded(parentPath, false)
           render()
 
           // Find line number of parent path, and if we able to find it,
@@ -630,11 +636,8 @@ module.exports = function start(filename, source, prev = {}) {
     autocomplete.hide()
 
     const path = index.get(n)
-    if (expanded.has(path)) {
-      expanded.delete(path)
-    } else {
-      expanded.add(path)
-    }
+    // XXX: format
+    updateExpanded(path, !getExpanded(path))
     render()
   })
 
@@ -649,6 +652,26 @@ module.exports = function start(filename, source, prev = {}) {
   box.key('S-p', function () {
     printJson()
   })
+
+  function getExpanded(path) {
+    if (Array.isArray(path)) {
+      path = paths.toZeroSeparatedString(path)
+    }
+    return expanded.has(path)
+  }
+
+  function updateExpanded(path, isExpanded) {
+    if (Array.isArray(path)) {
+      path = paths.toZeroSeparatedString(path)
+    }
+    const has = expanded.has(path)
+    if (isExpanded && !has) {
+      expanded.add(path)
+    }
+    if (!isExpanded && has) {
+      expanded.delete(path)
+    }
+  }
 
   function printJson(options = {}) {
     screen.destroy()
@@ -811,7 +834,7 @@ module.exports = function start(filename, source, prev = {}) {
 
       currentPath = ''
       for (let p of path) {
-        expanded.add(currentPath += p)
+        updateExpanded(currentPath += p, true)
       }
       render()
 
@@ -852,6 +875,7 @@ module.exports = function start(filename, source, prev = {}) {
   function updateRuler() {
     const y = box.childBase + program.y
     const [n] = getLine(program.y)
+    // XXX: format
     const path = index.get(n) || ''
     const scrollPercent = ((y / (box.getScrollHeight() - 1)) * 100).toFixed(0)
     const compressPath = p => {

@@ -48,6 +48,7 @@
   },
   "dependencies": {
     "@medv/blessed": "^2.0.1",
+    "array-equal": "^1.0.0",
     "chalk": "^3.0.0",
     "indent-string": "^4.0.0",
     "lossless-json": "^1.0.3",
