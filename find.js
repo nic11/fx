@@ -1,37 +1,74 @@
 'use strict'
 
-function* find(v, regex, path = []) {
+function find(v, regex, startFromPath, reverse, path = []) {
   if (typeof v === 'undefined' || v === null) {
     return
   }
 
-  if (Array.isArray(v)) {
-    let i = 0
-    for (let value of v) {
-      const nextPath = path.slice()
-      nextPath.push(i++)
-      yield* find(value, regex, nextPath)
+  function traverse(entries, startFrom, startFromPath) {
+    if (reverse) {
+      entries.reverse()
     }
-    return
-  }
 
-  if (typeof v === 'object' && v.constructor === Object) {
-    const entries = Object.entries(v)
+    if (startFrom !== null) {
+      while (entries[0][0] != startFrom) {
+        entries.shift();
+      }
+    }
+
     for (let [key, value] of entries) {
       const nextPath = path.slice()
       nextPath.push(key)
 
-      if (regex.test(key)) {
-        yield nextPath
+      if (key != startFrom && typeof key == 'string' && regex.test(key)) {
+        return nextPath
       }
 
-      yield* find(value, regex, nextPath)
+      const result = find(value, regex, startFromPath, reverse, nextPath)
+      if (key == startFrom) {
+        startFromPath = null
+      }
+      if (result) {
+        return result
+      }
+      // continue
     }
-    return
   }
 
-  if (regex.test(v)) {
-    yield path
+  let from = null
+  if (Array.isArray(startFromPath)) {
+    if (startFromPath.length == 0) {
+      // skipping this match, as we're standing on it
+      return
+    }
+    startFromPath = startFromPath.slice()
+    from = startFromPath.shift()
+  } else {
+    startFromPath = null
+  }
+
+  if (Array.isArray(v)) {
+    const entries = v.map((val, ind) => [ind, val])
+    const result = traverse(entries, from, startFromPath)
+    if (result) {
+      return result
+    } else {
+      return
+    }
+  }
+
+  if (typeof v === 'object' && v.constructor === Object) {
+    const entries = Object.entries(v)
+    const result = traverse(entries, from, startFromPath)
+    if (result) {
+      return result
+    } else {
+      return
+    }
+  }
+
+  if (startFromPath == null && regex.test(v)) {
+    return path
   }
 }
 

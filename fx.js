@@ -308,7 +308,12 @@ module.exports = function start(filename, source, prev = {}) {
 
   box.key('n', function () {
     hideStatusBar()
-    findNext()
+    findNext(false)
+  })
+
+  box.key('S-n', function () {
+    hideStatusBar()
+    findNext(true)
   })
 
   // High, Middle, Low cursor movement
@@ -806,7 +811,6 @@ module.exports = function start(filename, source, prev = {}) {
     search.hide()
 
     if (highlight) {
-      findGen = find(json, highlight)
       findNext()
     } else {
       findGen = null
@@ -821,14 +825,15 @@ module.exports = function start(filename, source, prev = {}) {
     render()
   }
 
-  function findNext() {
-    if (!findGen) {
+  function findNext(reverse) {
+    if (!highlight) {
       return
     }
 
-    const {value: path, done} = findGen.next()
+    const [n] = getLine(program.y)
+    const path = find(json, highlight, index.get(n), reverse);
 
-    if (done) {
+    if (!path) {
       showStatusBar('Pattern not found')
     } else {
 
